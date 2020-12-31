@@ -36,13 +36,11 @@ fn stuffdata(src: &mut Vec<u8>, dst: &mut Vec<u8>) -> Result<(),()> {
 
     let src_len = src.len();
     let mut search_len: u8 = 1;
-    let mut dst_ptr: usize = 0;
 
     for i in 0..src_len{
         if src[i] == 0 {
             dst.push(search_len);
             search_len = 1;
-            dst_ptr+=1;
         } else {
             search_len+=1;
             dst.push(src[i]);
@@ -59,24 +57,44 @@ fn stuffdata(src: &mut Vec<u8>, dst: &mut Vec<u8>) -> Result<(),()> {
 
 fn unstuffdata(src: &mut Vec<u8>, dst: &mut Vec<u8>) -> Result<(),()> {
 
-  /*  let src_len = src.len();
-    let mut search_len: u8 = 1;
-    let mut dst_ptr: usize = 0;
+
+    let mut remaining_bytes: usize = 0;
+    let mut src_byte: u8 = 0;
+    let mut len_code: u8 = 0;
+
+    let src_len = src.len();
+
 
     for i in 0..src_len{
-        if src[i] == 0 {
-            dst.push(search_len);
-            search_len = 1;
-            dst_ptr+=1;
-        } else {
-            search_len+=1;
-            dst.push(src[i]);
-            if search_len == 0xFF {
-                dst.push(search_len);
-                search_len = 1;
+
+        len_code = src[i];
+        if len_code == 0 {
+            break;
+        }
+        len_code -= 1;
+        remaining_bytes = src_len - i;
+        if len_code as usize > remaining_bytes {
+            // TODO fix this dangerous game
+            len_code = remaining_bytes as u8;
+        }
+
+       // for i in std::iter::range_step(len_code as usize, 0, -1){
+        //for j in (0isize..len_code as isize).step_by(-1){
+        for j in (0isize..len_code as isize).rev(){
+
+        src_byte = src[j as usize];//*src_read_ptr++;
+            if (src_byte == 0)
+            {
+                break;
             }
+            dst.push(src_byte);
+        }
+
+        if (len_code != 0xFE)
+        {
+
+            dst.push(0);
         }
     }
-    dst.push(search_len);*/
     Ok(())
 }
