@@ -107,7 +107,7 @@ pub fn run_client<'a>(request: u16, file: Option<&'a str>) -> u16 {
     return super::OK;
 }
 
-fn serialize_to_stats(payload: Vec<u8>) -> Result<(u64, u64, u8), ()> {
+pub fn serialize_to_stats(payload: Vec<u8>) -> Result<(u64, u64, u8), ()> {
     if payload.len() != 17 {
         println!(
             "\nCLIENT: Payload is longer than it should be! Length is {:?}",
@@ -161,6 +161,7 @@ fn base_request(request: u16, payload: Option<Vec<u8>>) -> message::Message {
         }
     }
 }
+
 
 #[cfg(feature = "client")]
 pub fn run_client_tests() {
@@ -340,7 +341,7 @@ pub fn run_client_tests() {
         println!("\nClient: unable to serialize received stats data");
     } else {
         let (returned_sent, returned_rcv, returned_ratio) = res.unwrap();
-        if returned_rcv != count_sent {
+        if returned_rcv != count_sent as u64 {
             //- 8 /*size of header*/ {
             println!(
                 "\nClient: Stats received not as expected! \
@@ -348,7 +349,7 @@ pub fn run_client_tests() {
                 count_sent, returned_rcv
             );
         }
-        if returned_sent != count_rcv {
+        if returned_sent != count_rcv as u64 {
             //- 8 /*size of header*/{
             println!(
                 "\nClient: Stats received not as expected! \
@@ -410,12 +411,12 @@ pub fn run_client_tests() {
                 }
 
                 count_sent += length as u32 + std::mem::size_of::<message::MessageHeader>() as u32;
-                count_rcv += msg.get_payload().len() as u32
+                count_rcv += msg.get_payload().unwrap().len() as u32
                     + std::mem::size_of::<message::MessageHeader>() as u32;
 
                 results[i] = (
                     length as u32 + std::mem::size_of::<message::MessageHeader>() as u32,
-                    msg.get_payload().len() as u32
+                    msg.get_payload().unwrap().len() as u32
                         + std::mem::size_of::<message::MessageHeader>() as u32,
                     msg.get_header(),
                 );
@@ -450,7 +451,7 @@ pub fn run_client_tests() {
         } else {
             msg = message.unwrap();
 
-            let res = serialize_to_stats(msg.get_payload().clone());
+            let res = serialize_to_stats(msg.get_payload().unwrap().clone());
 
             if res.is_err() {
                 println!("\nClient: unable to serialize received stats data");
@@ -503,7 +504,7 @@ pub fn run_client_tests() {
             println!(
                 "\nClient: got this back header {:?}, string {:?}",
                 msg.get_header(),
-                str::from_utf8(msg.get_payload().as_slice()).unwrap()
+                str::from_utf8(msg.get_payload().unwrap().as_slice()).unwrap()
             );
         }
     } else {
@@ -528,7 +529,7 @@ pub fn run_client_tests() {
         } else {
             msg = message.unwrap();
 
-            let res = serialize_to_stats(msg.get_payload().clone());
+            let res = serialize_to_stats(msg.get_payload().unwrap().clone());
 
             if res.is_err() {
                 println!("\nClient: unable to serialize received stats data");

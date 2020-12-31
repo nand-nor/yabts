@@ -1,18 +1,21 @@
-#![feature(toowned_clone_into)]
+//#![feature(toowned_clone_into)]
 extern crate bincode;
 extern crate serde;
 
 pub mod client;
 pub mod message;
 pub mod server;
+pub mod stats;
 pub mod transform;
 
-pub const MAX_MSG_LEN: usize = 4000;
 ///end users may want to modify for different MTUs
-pub const MAX_PAYLOAD_LEN: usize = MAX_MSG_LEN - 8;
+pub const MAX_MSG_LEN: usize = 4000;
+
 ///header size is 8 bytes
-pub const MAGIC: u32 = 0xDEADBEEF;
+pub const MAX_PAYLOAD_LEN: usize = MAX_MSG_LEN - 8;
+
 ///deadbeef
+pub const MAGIC: u32 = 0xDEADBEEF;
 
 /*Valid Statuses*/
 pub const OK: u16 = 0; //OK request/response

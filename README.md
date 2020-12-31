@@ -17,7 +17,9 @@ The `examples` dir contains  examples of already-implemented data transforms,
 specifically compression/ decompression and encoding/decoding implementations of:
 
     – Base 64
+    – COBS (Consistent Overhead Byte Stuffing)
     – "Simple" compression scheme for a trivial compression/decompression (see example)
+    – Using 3rd party crate for Snappy algorithm implementation
     – Possibly others, TBD
 
 ### Why do? ###

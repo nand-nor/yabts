@@ -1,115 +1,15 @@
-use std::net::TcpStream;
-use std::str;
 use bincode;
 use std::fs::File;
 use std::io::{Read, Write};
+use std::net::TcpStream;
+use std::process;
+use std::str;
 
-use crate::{message, MAX_MSG_LEN};
+use yabts::{message, MAX_MSG_LEN, *};
 
-
-pub fn run_client<'a>(request: u16, file: Option<&'a str>)->u16{
-    let send_payload: Option<Vec<u8>>;
-        if request == super::COMPRESS  {
-            if let Some(file) = file {
-                let mut fp = match File::open(file) {
-                    Err(why) => {
-                        println!("\nCLIENT: Could not open input target input, reason {:?}, exiting", why);
-                        return super::UNKNOWN
-                    }
-                    Ok(fp) => fp,
-                };
-                let mut file_payload: Vec<u8> = vec![];
-                if fp.read_to_end(&mut file_payload).is_err() {
-                    println!("\nCLIENT:  process unable to read file, exiting");
-                    return super::UNKNOWN as _
-                }
-                send_payload = Some(file_payload)
-            } else {
-                println!("\nCLIENT:  failed to specify compression payload target file, exiting");
-                return super::UNKNOWN as _
-            }
-        } else {
-            send_payload = None;
-        }
-
-    let stream = TcpStream::connect("127.0.0.1:4000");
-    if stream.is_ok() {
-        let mut stream = stream.unwrap();
-        let request_msg = base_request(request as u16, send_payload);
-        let send_bytes = bincode::serialize(&request_msg).unwrap();
-        if stream.write(send_bytes.as_slice()).is_err(){
-            println!("\nCLIENT: Failure to write to TCP stream");
-            return super::UNKNOWN as _
-        }
-        let mut read_it = [0u8; MAX_MSG_LEN];
-        if stream.read(&mut read_it).is_err(){
-            println!("\nCLIENT: Failure to read TCP stream");
-            return super::UNKNOWN as _
-        }
-        let message = bincode::deserialize(&read_it);
-        let msg: message::Message;// = message::Message::default();
-        if message.is_err() {
-            println!("\nCLIENT: Unable to deserialize read-in bytes");
-        } else {
-            msg = message.unwrap();
-            println!("\nCLIENT: received response with header {:?} and payload {:?}", msg.get_header(), msg.get_payload());
-            let (_, status) = msg.get_header().get();
-
-            if status != 0{
-                println!("\nCLIENT: received error response {:?}", status);
-                return status as _
-            }
-
-            match request as u16 {
-                super::PING => {
-                    println!("\nCLIENT: Ping: return status {:?}", status);
-                },
-                super::GET => {
-                    let res = serialize_to_stats(msg.get_payload().clone());
-
-                    if res.is_err() {
-                        println!("\nCLIENT: unable to serialize received stats data");
-                        return super::UNKNOWN
-                    } else {
-                        let (returned_sent, returned_rcv, returned_ratio) = res.unwrap();
-                        println!("\nCLIENT: Stats: return status {:?}, server returned sent bytes: {:?}, \
-                        rcv'd bytes {:?}, ratio: {:?}", status, returned_sent, returned_rcv, returned_ratio);
-                    }
-
-                },
-                super::RESET => {
-                    println!("\nCLIENT: Reset: return status {:?}", status);
-                },
-                super::COMPRESS => {
-                    let temp_load = msg.get_payload();
-                    let compressed =  str::from_utf8(temp_load.as_slice());
-                    if compressed.is_err(){
-
-                        println!("\nCLIENT: unable to serialize received stats data");
-                        return super::UNKNOWN
-                    } else {
-                        let compressed: &str = compressed.unwrap().clone();
-                        println!("\nCLIENT: compressed data:\n {:?}", compressed);
-                    }
-
-                },
-                _ => {return super::EINVAL}
-
-            };
-
-
-        }
-    } else {
-        println!("\nCLIENT:  unable to connect to TCP server at 127.0.0.1:4000, exiting");
-        return super::UNKNOWN as _
-    }
-    return super::OK
-}
-
-
-
-fn serialize_to_stats(payload: Vec<u8>) -> Result<(u32, u32, u8), ()> {
-    if payload.len() != 9 {
+/*
+fn serialize_to_stats(payload: Vec<u8>) -> Result<(u64, u64, u8), ()> {
+    if payload.len() != 17 {
         println!(
             "\nCLIENT: Payload is longer than it should be! Length is {:?}",
             payload.len()
@@ -118,69 +18,63 @@ fn serialize_to_stats(payload: Vec<u8>) -> Result<(u32, u32, u8), ()> {
     }
 
     //copy_from_slice() and clone_from_slice both fail to copy over vec's bytes?
-    let mut sent_bytes: [u8; 4] = [0; 4];
-    let mut rcv_bytes: [u8; 4] = [0; 4];
-    for i in 0..4 {
+    let mut sent_bytes: [u8; 8] = [0; 8];
+    let mut rcv_bytes: [u8; 8] = [0; 8];
+    for i in 0..8 {
         sent_bytes[i] = payload[i];
-        rcv_bytes[i] = payload[i + 4];
+        rcv_bytes[i] = payload[i + 8];
     }
 
-    let sent = u32::from_ne_bytes(sent_bytes);
-    let rcv = u32::from_ne_bytes(rcv_bytes);
-    let ratio = payload[8];
+    let sent = u64::from_ne_bytes(sent_bytes);
+    let rcv = u64::from_ne_bytes(rcv_bytes);
+    let ratio = payload[16];
 
     Ok((sent, rcv, ratio))
 }
 
-
-
-fn base_request(request: u16, payload: Option<Vec<u8>>)->message::Message {
+fn base_request(request: u16, payload: Option<Vec<u8>>) -> message::Message {
     match request {
-        super::PING  => {
+        PING => {
             println!("\nCLIENT:  requesting ping...");
-            message::Message::new(0, request)
+            message::Message::new(0, request, None)
         }
-        super::GET => {
+        GET => {
             println!("\nCLIENT:  requesting server stats...");
-            message::Message::new(0, request)
+            message::Message::new(0, request, None)
         }
-        super::RESET => {
+        RESET => {
             println!("\nCLIENT: requesting server stat reset...");
-            message::Message::new(0, request)
+            message::Message::new(0, request, None)
         }
-        super::COMPRESS => {
+        COMPRESS => {
             println!("\nCLIENT: requesting compression...");
             if let Some(payload) = payload {
                 let length = payload.len();
-                message::Message::new_with_payload(length as u16, request, payload)
+                message::Message::new(length as u16, request, Some(payload))
             } else {
                 println!("\nCLIENT: invalid request");
-                return message::Message::default()
+                return message::Message::default();
             }
         }
         _ => {
             println!("\nCLIENT: invalid request");
-            return message::Message::default()
+            return message::Message::default();
         }
     }
+}*/
 
-}
-
-
-
-#[cfg(feature = "client")]
 pub fn run_client_tests() {
     let simple = "aaabbbcccddd";
     let no_compress = "abcdefghijklmnop";
     let all_compress = "xxxxxxxxxxxxxxxxxxxxxxxxxx";
     //assert these pass
-    let test_cases = [super::COMPRESS, super::COMPRESS, super::COMPRESS, super::PING, super::GET];
+    let test_cases = [COMPRESS, COMPRESS, COMPRESS, PING, GET];
     //assert these fail
-    let more_tests = [super::COMPRESS, super::COMPRESS, super::COMPRESS,  5, 99, super::RESET];
+    let more_tests = [COMPRESS, COMPRESS, COMPRESS, 5, 99, RESET];
     let mut results: [(u32, u32, message::MessageHeader); 8] =
         [(0, 0, message::MessageHeader::default()); 8];
     let strings = [simple, no_compress, all_compress];
-    let bad_strings: [&str;3] = ["ABCDEFG", "0xdeadbeef", "jjjjaaazzz!"];
+    let bad_strings: [&str; 3] = ["ABCDEFG", "0xdeadbeef", "jjjjaaazzz!"];
     let mut compressed: Vec<Vec<u8>> = Vec::new();
     let mut stats: Vec<Vec<u8>> = Vec::new();
     let mut count_sent: u32 = 0;
@@ -195,20 +89,19 @@ pub fn run_client_tests() {
             let mut length: usize = 0;
 
             let request_msg: message::Message;
-            if test_cases[i] == super::COMPRESS {
+            if test_cases[i] == COMPRESS {
                 let payload = strings[i].as_bytes();
                 length = payload.len();
-                request_msg =
-                    message::Message::new_with_payload(length as u16, 4, payload.to_vec());
+                request_msg = message::Message::new(length as u16, 4, Some(payload.to_vec()));
             } else {
-                request_msg = message::Message::new(0, test_cases[i]);
+                request_msg = message::Message::new(0, test_cases[i], None);
             }
             let send_bytes = bincode::serialize(&request_msg).unwrap();
 
             stream.write(send_bytes.as_slice());
             println!("\nClient: wrote {:?} (serialized)", send_bytes);
 
-            let mut read_it = [0u8; super::MAX_MSG_LEN];
+            let mut read_it = [0u8; MAX_MSG_LEN];
             stream.read(&mut read_it);
 
             let message = bincode::deserialize(&read_it);
@@ -220,29 +113,32 @@ pub fn run_client_tests() {
                 println!(
                     "\nClient: received response with header {:?} and payload {:?}",
                     msg.get_header(),
-                    msg.get_payload()
+                    msg.get_payload().unwrap()
                 );
 
-                if test_cases[i] == super::COMPRESS {
+                if test_cases[i] == COMPRESS {
                     // let payload = msg.get_payload();
 
-                    compressed.push(msg.get_payload()); //returned.clone();
-
+                    compressed.push(msg.get_payload().unwrap()); //returned.clone();
                 }
 
-                if test_cases[i] == super::GET {
-                    stats.push(msg.get_payload());
+                if test_cases[i] == GET {
+                    stats.push(msg.get_payload().unwrap());
                 } else {
-                    println!("Incrementing count sent and rcv!! Sent was {:?}, rcv was {:?}", count_sent, count_rcv);
-                    count_sent += length as u32 + std::mem::size_of::<message::MessageHeader>() as u32;
-                    count_rcv += msg.get_payload().len() as u32
+                    println!(
+                        "Incrementing count sent and rcv!! Sent was {:?}, rcv was {:?}",
+                        count_sent, count_rcv
+                    );
+                    count_sent +=
+                        length as u32 + std::mem::size_of::<message::MessageHeader>() as u32;
+                    count_rcv += msg.get_payload().unwrap().len() as u32
                         + std::mem::size_of::<message::MessageHeader>() as u32;
                     println!(" Sent is now {:?}, rcv is now {:?}", count_sent, count_rcv);
                 }
 
                 results[i] = (
                     length as u32 + std::mem::size_of::<message::MessageHeader>() as u32,
-                    msg.get_payload().len() as u32
+                    msg.get_payload().unwrap().len() as u32
                         + std::mem::size_of::<message::MessageHeader>() as u32,
                     msg.get_header(),
                 );
@@ -296,7 +192,7 @@ pub fn run_client_tests() {
                         "\nClient: Sent {:?}, Received {:?}",
                         strings[i], returned_simple
                     );
-                },
+                }
                 1 => {
                     println!(
                         "\nClient: Sent {:?}, Received {:?}",
@@ -309,7 +205,7 @@ pub fn run_client_tests() {
                         strings[i], returned_all
                     );
                 }
-                _ => {continue}
+                _ => continue,
             };
         }
     }
@@ -325,24 +221,26 @@ pub fn run_client_tests() {
         );
     }
 
-    let res = serialize_to_stats(stats[0].clone());
+    let res = client::serialize_to_stats(stats[0].clone());
 
     if res.is_err() {
         println!("\nClient: unable to serialize received stats data");
     } else {
         let (returned_sent, returned_rcv, returned_ratio) = res.unwrap();
-        if returned_rcv != count_sent {//- 8 /*size of header*/ {
+        if returned_rcv != count_sent as u64 {
+            //- 8 /*size of header*/ {
             println!(
                 "\nClient: Stats received not as expected! \
                  Local count for sent bytes {:?}, response {:?}",
-                 count_sent, returned_rcv
+                count_sent, returned_rcv
             );
         }
-        if returned_sent != count_rcv  {//- 8 /*size of header*/{
+        if returned_sent != count_rcv as u64 {
+            //- 8 /*size of header*/{
             println!(
                 "\nClient: Stats received not as expected! \
                  Local count for received bytes {:?}, response {:?}",
-                 count_rcv, returned_sent
+                count_rcv, returned_sent
             );
         }
 
@@ -363,18 +261,17 @@ pub fn run_client_tests() {
             let mut length: usize = 0;
 
             let request_msg: message::Message;
-            if more_tests[i] == super::COMPRESS {
+            if more_tests[i] == COMPRESS {
                 let payload = bad_strings[i].as_bytes();
                 length = payload.len();
-                request_msg =
-                    message::Message::new_with_payload(length as u16, 4, payload.to_vec());
+                request_msg = message::Message::new(length as u16, 4, Some(payload.to_vec()));
             } else {
-                request_msg = message::Message::new(0, more_tests[i]);
+                request_msg = message::Message::new(0, more_tests[i], None);
             }
             let send_bytes = bincode::serialize(&request_msg).unwrap();
 
             stream.write(send_bytes.as_slice());
-            let mut read_it = [0u8; super::MAX_MSG_LEN];
+            let mut read_it = [0u8; MAX_MSG_LEN];
             stream.read(&mut read_it);
 
             let message = bincode::deserialize(&read_it);
@@ -389,23 +286,22 @@ pub fn run_client_tests() {
                     msg.get_payload()
                 );
 
-                if more_tests[i] == super::COMPRESS && msg.get_header().get() != (0, super::EINVAL){
+                if more_tests[i] == COMPRESS && msg.get_header().get() != (0, EINVAL) {
                     println!("Server did not return appropriate error for bad string!");
                     error_flag = true;
-                    //println!("Set compressed array to {:?} versus compressed[i] {:?}", returned.clone(), compressed[i]);
-                } else if more_tests[i] > 4 && msg.get_header().get() != (0, super::ENOSUP){
+                //println!("Set compressed array to {:?} versus compressed[i] {:?}", returned.clone(), compressed[i]);
+                } else if more_tests[i] > 4 && msg.get_header().get() != (0, ENOSUP) {
                     println!("Server did not return appropriate error for bad string!");
                     error_flag = true;
-
                 }
 
                 count_sent += length as u32 + std::mem::size_of::<message::MessageHeader>() as u32;
-                count_rcv += msg.get_payload().len() as u32
+                count_rcv += msg.get_payload().unwrap().len() as u32
                     + std::mem::size_of::<message::MessageHeader>() as u32;
 
                 results[i] = (
                     length as u32 + std::mem::size_of::<message::MessageHeader>() as u32,
-                    msg.get_payload().len() as u32
+                    msg.get_payload().unwrap().len() as u32
                         + std::mem::size_of::<message::MessageHeader>() as u32,
                     msg.get_header(),
                 );
@@ -416,22 +312,21 @@ pub fn run_client_tests() {
         }
     }
 
-    if !error_flag{
+    if !error_flag {
         println!("\nClient: all failure conditions handled appropriately by server!");
-
     } else {
         println!("\nClient: failure conditions not handled appropriately by server, needs fixing");
     }
 
     println!("\nClient: checking stats reset...");
-    let stats_msg = message::Message::new(0, super::GET);
+    let stats_msg = message::Message::new(0, GET, None);
     let stream = TcpStream::connect("127.0.0.1:4000");
 
     if stream.is_ok() {
         let mut stream = stream.unwrap();
         let send_bytes = bincode::serialize(&stats_msg).unwrap();
         stream.write(send_bytes.as_slice());
-        let mut read_it = [0u8; super::MAX_MSG_LEN];
+        let mut read_it = [0u8; MAX_MSG_LEN];
         stream.read(&mut read_it);
 
         let message = bincode::deserialize(&read_it);
@@ -441,7 +336,7 @@ pub fn run_client_tests() {
         } else {
             msg = message.unwrap();
 
-            let res = serialize_to_stats(msg.get_payload().clone());
+            let res = client::serialize_to_stats(msg.get_payload().unwrap().clone());
 
             if res.is_err() {
                 println!("\nClient: unable to serialize received stats data");
@@ -449,17 +344,16 @@ pub fn run_client_tests() {
                 let (returned_sent, returned_rcv, returned_ratio) = res.unwrap();
                 println!("\nClient: received this data, post reset request! sent {:?} rcv {:?} ratio {:?}", returned_sent, returned_rcv, returned_ratio);
             }
-
         }
-    }else {
+    } else {
         println!("\nClient: unable to connect to TCP server");
         process::exit(1);
     }
 
     //create a message of length
     let mut long_msg: Vec<char> = Vec::new();
-    for i in 0..MAX_PAYLOAD_LEN / 4{
-        long_msg.push('z');  //z in ascii
+    for i in 0..MAX_PAYLOAD_LEN / 4 {
+        long_msg.push('z'); //z in ascii
         long_msg.push('z');
         long_msg.push('z');
         long_msg.push('z');
@@ -467,8 +361,14 @@ pub fn run_client_tests() {
 
     let long_string: String = long_msg.into_iter().collect();
 
-    println!("\nClient: FINAL CHECK-- checking stats reset with new ratio! Compression should be 50");
-    let compress_msg = message::Message::new_with_payload(long_string.len() as u16, super::COMPRESS, long_string.as_bytes().to_vec());
+    println!(
+        "\nClient: FINAL CHECK-- checking stats reset with new ratio! Compression should be 50"
+    );
+    let compress_msg = message::Message::new(
+        long_string.len() as u16,
+        COMPRESS,
+        Some(long_string.as_bytes().to_vec()),
+    );
     let stream = TcpStream::connect("127.0.0.1:4000");
 
     if stream.is_ok() {
@@ -476,7 +376,7 @@ pub fn run_client_tests() {
 
         let send_bytes = bincode::serialize(&compress_msg).unwrap();
         stream.write(send_bytes.as_slice());
-        let mut read_it = [0u8; super::MAX_MSG_LEN];
+        let mut read_it = [0u8; MAX_MSG_LEN];
         stream.read(&mut read_it);
 
         let message = bincode::deserialize(&read_it);
@@ -486,22 +386,25 @@ pub fn run_client_tests() {
         } else {
             msg = message.unwrap();
 
-           println!("\nClient: got this back header {:?}, string {:?}", msg.get_header(), str::from_utf8(msg.get_payload().as_slice()).unwrap());
-
+            println!(
+                "\nClient: got this back header {:?}, string {:?}",
+                msg.get_header(),
+                str::from_utf8(msg.get_payload().unwrap().as_slice()).unwrap()
+            );
         }
-    }else {
+    } else {
         println!("\nClient: unable to connect to TCP server");
         process::exit(1);
     }
 
-    let stats_msg = message::Message::new(0, super::GET);
+    let stats_msg = message::Message::new(0, GET, None);
     let stream = TcpStream::connect("127.0.0.1:4000");
 
     if stream.is_ok() {
         let mut stream = stream.unwrap();
         let send_bytes = bincode::serialize(&stats_msg).unwrap();
         stream.write(send_bytes.as_slice());
-        let mut read_it = [0u8; super::MAX_MSG_LEN];
+        let mut read_it = [0u8; MAX_MSG_LEN];
         stream.read(&mut read_it);
 
         let message = bincode::deserialize(&read_it);
@@ -511,7 +414,7 @@ pub fn run_client_tests() {
         } else {
             msg = message.unwrap();
 
-            let res = serialize_to_stats(msg.get_payload().clone());
+            let res = client::serialize_to_stats(msg.get_payload().unwrap().clone());
 
             if res.is_err() {
                 println!("\nClient: unable to serialize received stats data");
@@ -519,9 +422,8 @@ pub fn run_client_tests() {
                 let (returned_sent, returned_rcv, returned_ratio) = res.unwrap();
                 println!("\nClient: received this data, post reset request! sent {:?} rcv {:?} ratio {:?}", returned_sent, returned_rcv, returned_ratio);
             }
-
         }
-    }else {
+    } else {
         println!("\nClient: unable to connect to TCP server");
         process::exit(1);
     }

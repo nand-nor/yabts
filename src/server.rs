@@ -5,97 +5,11 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::str::FromStr;
 
 use crate::message::*;
+use crate::stats::*;
 use crate::transform::*;
 
 use super::MAX_MSG_LEN;
 use super::MAX_PAYLOAD_LEN;
-
-
-pub struct ServerStats {
-    bytes_sent: u64,      //all bytes sent, including headers
-    bytes_received: u64,  //all bytes received, including headers
-    compress_sent: u64,   //all -valid- bytes sent (excludes invalid compression requests)
-    compress_rcv: u64,    //all -valid- bytes received (excludes invalid compression requests)
-    decompress_sent: u64, //all -valid- bytes sent (excludes invalid compression requests)
-    decompress_rcv: u64,  //all -valid- bytes received (excludes invalid compression requests)
-
-    compression_ratio: u8, //ratio of compress_sent / compress_rcv
-
-    encode_sent: u64,
-    encode_rcv: u64,
-    decode_sent: u64,
-    decode_rcv: u64,
-}
-
-impl ServerStats {
-    fn new() -> ServerStats {
-        ServerStats {
-            bytes_sent: 0,
-            bytes_received: 0,
-            compress_sent: 0,
-            compress_rcv: 0,
-            compression_ratio: 0,
-            decompress_sent: 0,
-            decompress_rcv: 0,
-            encode_sent: 0,
-            encode_rcv: 0,
-            decode_sent: 0,
-            decode_rcv: 0,
-        }
-    }
-
-    fn get_stats(&self) -> (u64, u64, u8) {
-        (self.bytes_sent, self.bytes_received, self.compression_ratio)
-    }
-
-    //ensure safe addition-- if overflow will occur, do wrapping add
-    fn add_compression_data(&mut self, rcv: u64, sent: u64) {
-        if self.compress_sent.checked_add(sent).is_some() {
-            self.compress_sent += sent;
-        } else {
-            self.compress_sent = self.compress_sent.wrapping_add(sent);
-        }
-        //ensure no overflow -- check add and if not safe then wrapping add
-        if self.compress_rcv.checked_add(rcv).is_some() {
-            self.compress_rcv += rcv;
-        } else {
-            self.compress_rcv = self.compress_rcv.wrapping_add(rcv);
-        }
-        //only update this when we compress data
-        //ensure safe division & safe multiplication
-        if self.compress_rcv.checked_div(self.compress_sent).is_some() {
-            self.compression_ratio =
-                ((self.compress_rcv as f64 / self.compress_sent as f64) * 100 as f64) as u8;
-        } else {
-            //retain the old ratio
-        }
-    }
-
-    //reset stats
-    fn reset_stats(&mut self) {
-        self.bytes_sent = 0;
-        self.bytes_received = 0;
-        self.compress_rcv = 0;
-        self.compress_sent = 0;
-        self.compression_ratio = 0;
-    }
-
-    //safely update the server's inner stats
-    fn update_stats(&mut self, update_sent: u64, update_recv: u64) {
-        //ensure no overflow -- check add and if not safe then wrapping add
-        if self.bytes_sent.checked_add(update_sent).is_some() {
-            self.bytes_sent += update_sent;
-        } else {
-            self.bytes_sent = self.bytes_sent.wrapping_add(update_sent);
-        }
-        //ensure no overflow -- check add and if not safe then wrapping add
-        if self.bytes_received.checked_add(update_recv).is_some() {
-            self.bytes_received += update_recv;
-        } else {
-            self.bytes_received = self.bytes_received.wrapping_add(update_recv);
-        }
-    }
-}
 
 pub struct Server {
     stats: ServerStats,
@@ -180,11 +94,12 @@ impl Server {
     }
 
     ///TODO need to fix this-- three copies of the same damn vec is bad
-    fn transform_payload(&mut self, direction: bool, payload: Vec<u8>) -> Result<Vec<u8>, ()> {
+    fn transform_payload(&mut self, direction: bool, mut payload: Vec<u8>) -> Result<Vec<u8>, ()> {
         let mut cp: Vec<u8> = Vec::new();
-        payload.clone_into(&mut cp);
-        self.method.transform(direction, &mut cp);
-        //Err(())
+
+        // payload.clone_into(&mut cp);
+        self.method.transform(direction, &mut payload); //cp);
+                                                        //Err(())
         Ok(cp.clone())
     }
 
@@ -242,7 +157,7 @@ impl Server {
                 super::COMPRESS => self.generate_compression(payload),
                 super::DECOMPRESS => self.generate_decompression(payload),
                 super::ENCODE => match self.transform_payload(true, payload) {
-                    Ok((t)) => Message::new(t.len() as u16, super::OK, Some(t)),
+                    Ok(t) => Message::new(t.len() as u16, super::OK, Some(t)),
                     Err(e) => Message::new(0, super::EINVAL, None),
                 },
                 super::DECODE => match self.transform_payload(false, payload) {
