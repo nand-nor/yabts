@@ -12,29 +12,45 @@ use super::MAX_MSG_LEN;
 use super::MAX_PAYLOAD_LEN;
 
 pub struct Server {
+    addr: Ipv4Addr,
+    port: u16,
     stats: ServerStats,
     error_state: Option<u16>,
     method: Box<dyn Transform>,
 }
 
 impl Server {
-    pub fn new<B: 'static + Transform>(method: B) -> Result<Server, ()> {
+    pub fn new<B: 'static + Transform>(
+        method: B,
+        addr: String,
+        _port: String,
+    ) -> Result<Server, u16> {
+        let ip = Ipv4Addr::from_str(&addr);
+        let port = u16::from_str_radix(&_port, 10);
+
+        if ip.is_err() {
+            println!("\nSERVER: Invalid server address provided");
+            return Err(super::EINVAL);
+        }
+
+        if port.is_err() {
+            println!("\nSERVER: Invalid server port provided");
+            return Err(super::EINVAL);
+        }
+
         Ok(Server {
+            addr: ip.unwrap(),
+            port: port.unwrap(),
             stats: ServerStats::new(),
             error_state: None,
             method: Box::new(method),
         })
     }
 
-    pub fn listen(&mut self, addr: String, port: String) -> u16 {
-        let ip = Ipv4Addr::from_str(&addr);
-        if ip.is_err() {
-            println!("\nSERVER: Invalid address");
-            return super::EINVAL;
-        }
+    pub fn listen(&mut self) -> u16 {
         let socket = SocketAddr::new(
-            IpAddr::V4(ip.unwrap()),
-            u16::from_str_radix(&port, 10).unwrap(),
+            IpAddr::V4(self.addr), //ip.unwrap()),
+            self.port,             //u16::from_str_radix(&port, 10).unwrap(),
         );
         let bind = TcpListener::bind(&socket);
         if bind.is_err() {
@@ -96,10 +112,8 @@ impl Server {
     ///TODO need to fix this-- three copies of the same damn vec is bad
     fn transform_payload(&mut self, direction: bool, mut payload: Vec<u8>) -> Result<Vec<u8>, ()> {
         let mut cp: Vec<u8> = Vec::new();
-
-        // payload.clone_into(&mut cp);
-        self.method.transform(direction, &mut payload); //cp);
-                                                        //Err(())
+        self.method.transform(direction, &mut payload);
+        cp = payload.clone();
         Ok(cp.clone())
     }
 
@@ -167,7 +181,6 @@ impl Server {
                 _ => Message::new(0, super::ENOSUP, None),
             }
         } else {
-            //Message::new(0, super::EINVAL, None)
             Message::new(0, mtype, None)
         }
     }
@@ -215,8 +228,8 @@ impl Server {
             return Err(self.generate_msg(super::EINVAL, None));
         }
 
-        let full = match stream.read(&mut full_bytes) {
-            Ok(t) => bincode::deserialize(&bytes),
+        let full: Result<Message, bincode::Error> = match stream.read(&mut full_bytes) {
+            Ok(t) => bincode::deserialize(&full_bytes),
             Err(e) => {
                 println!("\nSERVER: Failure to read stream-- drop connection");
                 return Err(self.generate_msg(super::INTERNAL_ERROR, None));
@@ -284,8 +297,7 @@ impl Server {
                     Ok(t) => {
                         let send_len = t - std::mem::size_of::<MessageHeader>();
                         //Note: if reset request was made, this will add 8 bytes to each
-                        self.update_stats(send_len as u64, 0); //bytes_rcv as u64);
-                                                               // Ok(())
+                        self.update_stats(send_len as u64, 0);
                     }
                     Err(e) => {
                         println!("\nSERVER: Failure to write stream");

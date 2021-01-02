@@ -85,5 +85,4 @@ impl ServerStats {
             self.bytes_received = self.bytes_received.wrapping_add(update_recv);
         }
     }
-
 }

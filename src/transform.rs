@@ -1,57 +1,7 @@
-pub trait _Compress {
-    fn _compress(&self, payload: &mut Vec<u8>) -> Result<(), io::Error>;
-}
-
-pub trait _Decompress {
-    fn _decompress(&self, payload: &mut Vec<u8>) -> Result<(), io::Error>;
-}
-
-/*
-pub trait Encode {
-    pub fn encode(payload: Payload) -> Result<(Payload, usize), Error>;
-}
-
-
-
-pub trait Decode {
-    pub fn decode(payload: Payload) -> Result<(Payload, usize), Error>;
-}
-
-pub struct Payload {
-    pub bytes: Vec<u8>,
-}*/
-
 use std::io; //error::Error;
 
-/*
-* The following are generic traits that
-* users can implement dynamic trait objects on
-* e.g. users can implement Encode for some algorithm like
-* base 64. Then users can implement Encode<B: b64> for Vec<u8>
-*
-
-
-pub trait Compress<T> {
-   // fn compress<T>(payload: Payload)
-    fn _compress<T>(payload: Vec<u8>) -> Result<Vec<u8>, dyn Error>;
-    fn __compress<T>(self) -> Result<Vec<u8>, dyn Error>;
-    fn buf_compress<T>(self)-> Result<&[u8], dyn Error>;
-}
-
-pub trait Decompress<T> {
-    fn decompress<T>(payload: Vec<u8>) -> Result<Vec<u8>, dyn Error>;
-}
-
-//Default associated type is self e.g. no encode
-pub trait Encode<T=Self> {
-    fn encode<T>(payload: Vec<u8>) -> Result<Vec<u8>, dyn Error>;
-}
-*/
-
 pub struct TransformPayload {
-    //pub to_method: Option<Box<dyn _Encode>>,
-    //pub from_method: Option<Box<dyn _Decode>>,
-    ///* TODO add more match branches for compression versus encoding
+    ///* TODO DO we want support for multiple types at once? e.g. vector of dynamic trait objects?
     pub to_method_e: Option<Box<dyn _Encode>>,
     pub from_method_ed: Option<Box<dyn _Decode>>,
     pub to_method_c: Option<Box<dyn _Compress>>,
@@ -85,19 +35,44 @@ impl Transform for TransformPayload {
 
 pub trait _Encode {
     fn _encode(&self, payload: &mut Vec<u8>) -> Result<(), io::Error>;
-
-    // fn retain<F>(&mut self, f: F)
-    //    where
-    //        F: FnMut(&T) -> bool;
 }
 
 pub trait _Decode {
     fn _decode(&self, payload: &mut Vec<u8>) -> Result<(), io::Error>;
-
-    // fn retain<F>(&mut self, f: F)
-    //    where
-    //        F: FnMut(&T) -> bool;
 }
+
+pub trait _Compress {
+    fn _compress(&self, payload: &mut Vec<u8>) -> Result<(), io::Error>;
+}
+
+pub trait _Decompress {
+    fn _decompress(&self, payload: &mut Vec<u8>) -> Result<(), io::Error>;
+}
+
+/*
+* The following are generic traits that
+* users can implement dynamic trait objects on
+* e.g. users can implement Encode for some algorithm like
+* base 64. Then users can implement Encode<B: b64> for Vec<u8>
+*
+
+
+pub trait Compress<T> {
+   // fn compress<T>(payload: Payload)
+    fn _compress<T>(payload: Vec<u8>) -> Result<Vec<u8>, dyn Error>;
+    fn __compress<T>(self) -> Result<Vec<u8>, dyn Error>;
+    fn buf_compress<T>(self)-> Result<&[u8], dyn Error>;
+}
+
+pub trait Decompress<T> {
+    fn decompress<T>(payload: Vec<u8>) -> Result<Vec<u8>, dyn Error>;
+}
+
+//Default associated type is self e.g. no encode
+pub trait Encode<T=Self> {
+    fn encode<T>(payload: Vec<u8>) -> Result<Vec<u8>, dyn Error>;
+}
+*/
 
 pub trait ___Payload<E: _Encode> {
     type Input;
@@ -195,16 +170,28 @@ pub struct Default {}
 
 impl _Encode for Default {
     fn _encode(&self, payload: &mut Vec<u8>) -> Result<(), io::Error> {
-        println!("Running the inner Encode method!!!\n");
-
+        println!("Running the inner generic Encode method!!!\n");
         Ok(())
     }
 }
 
 impl _Decode for Default {
     fn _decode(&self, payload: &mut Vec<u8>) -> Result<(), io::Error> {
-        println!("Running the inner Decode method!!!\n");
+        println!("Running the inner generic Decode method!!!\n");
+        Ok(())
+    }
+}
 
+impl _Compress for Default {
+    fn _compress(&self, payload: &mut Vec<u8>) -> Result<(), io::Error> {
+        println!("Running the inner generic Encode method!!!\n");
+        Ok(())
+    }
+}
+
+impl _Decompress for Default {
+    fn _decompress(&self, payload: &mut Vec<u8>) -> Result<(), io::Error> {
+        println!("Running the inner generic Decode method!!!\n");
         Ok(())
     }
 }
