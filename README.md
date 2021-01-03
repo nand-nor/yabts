@@ -66,20 +66,3 @@ For this service I have used the `serde` and `bincode` libraries, which together
 perform serialization and deserialization of bytes sent over the TCP socket. From 
 `bincode`'s documentation: "A compact encoder / decoder pair that uses a binary 
 zero-fluff encoding scheme" This handles encoding and decoding network byte order.
-
-
-## TODO ##
-- Implement UDP option
-- Implement comprehensive test suite
-- Implement other encoding/decoding schemes
-    
-    - b64
-    - lehmer (may be too complex?)
-    - COBS (may be stupid?)
-    - whatelse?
-    - maybe encryption?
-   
-- Restructure crate into something a user can pull in and then implement their own trait objects
-- Make server multi threaded? Not sure we really need this optimization, 
-the service is not intended to scale to serve many concurrent users...
-- 
