@@ -49,16 +49,23 @@ The service uses a simple client-server design pattern: it is a single
 threaded TCP server that responds to the various requests as listed 
 in the initial spec. The crate is composed of a library and a series of example binaries 
 which can run in either client or server mode. 
+```
 
-Specifying the `-c` option will run the binary in client mode, however a server instance 
-must be running prior to running client mode. To run in client mode, all requests
-are made via command line. If requesting compression, then you must specify a file
-with the to-be-compressed bytes.  
 
-To run in server mode, do not specify -c. Server mode takes either no arguments, 3, 
-or 5 arguments: use -p to specify a port and -a to specify an address. 
-The default address and port, if either or none specified, is 127.0.0.1:400.
+pub fn display_useage() {
+    println!(
+        "Useage:{} [-p <port>] [-a <address>] [-m <runmode>] [-r <request>] [-f <file name>]\n\
+         -p : \tspecify port for server (default is 4000)\n\
+         -a : \tspecify address for server(default is 127.0.0.1)\n\
+         -m : \tuse 'client' for client mode, 'server' for server mode. \n\
+         -r : \tfor client mode only, specify request using one of: encode/decode/compress/decompress\n\
+         -f : \tfor client mode only, optional file name for byte transform request\n\
+         \nIf no args provided, will default to run in server mode on 127.0.0.1:4000",
+        env::args().nth(0).unwrap()
+    );
+}
 
+```
 
 ## 3rd Party Libraries ##
 
