@@ -27,22 +27,58 @@ pub const ENOSUP: u16 = 3; //Unsupported request type
 pub const INTERNAL_ERROR: u16 = 33; //some internal error state
 pub const OTHER_ERROR: u16 = 34;
 
-/// Valid Requests for Debugging
-/// TODO need to add support for an admin mode
-pub const PING: u16 = 1;
-pub const GET: u16 = 2;
-pub const RESET: u16 = 3;
+/// Valid Client Requests
+#[derive(Copy, Clone)]
+pub enum REQUEST {
+    NONE = 0,
+    PING = 1,
+    GET,
+    RESET,
+    COMPRESS,
+    DECOMPRESS,
+    ENCODE,
+    DECODE,
+}
 
-/// Valid Client requests (for non debugging)
-pub const COMPRESS: u16 = 4;
-pub const DECOMPRESS: u16 = 5;
-pub const ENCODE: u16 = 6;
-pub const DECODE: u16 = 7;
 
-//pub const STORE: u16 = 8;       ///Store a payload -- to be implemented
-//pub const RETRIEVE: u16 = 9;    ///Retrieve a payload -- to be implemented
+impl std::str::FromStr for REQUEST {
+    type Err = std::io::Error;
+    fn from_str(request: &str)->Result<REQUEST,std::io::Error>{
+        match request {
+            "ping" => Ok(REQUEST::PING),
+            "get" => Ok(REQUEST::GET),
+            "reset" => Ok(REQUEST::RESET),
+            "compress" => Ok(REQUEST::COMPRESS),
+            "decompress" => Ok(REQUEST::DECOMPRESS),
+            "encode" => Ok(REQUEST::ENCODE),
+            "decode" => Ok(REQUEST::DECODE),
+            _ => return Err(std::io::Error::new(std::io::ErrorKind::Other,
+                                                "Invalid request provided"))
+        }
+    }
+}
+
+use std::convert::TryFrom;
+
+impl TryFrom<u16> for REQUEST {
+    type Error = ();
+    fn try_from(v: u16) -> Result<Self, Self::Error> {
+        match v {
+            x if x == REQUEST::NONE as u16 => Ok(REQUEST::NONE),
+            x if x == REQUEST::PING as u16 => Ok(REQUEST::PING),
+            x if x == REQUEST::GET as u16 => Ok(REQUEST::GET),
+            x if x == REQUEST::RESET as u16 => Ok(REQUEST::RESET),
+            x if x == REQUEST::COMPRESS as u16 => Ok(REQUEST::COMPRESS),
+            x if x == REQUEST::DECOMPRESS as u16 => Ok(REQUEST::DECOMPRESS),
+            x if x == REQUEST::ENCODE as u16 => Ok(REQUEST::ENCODE),
+            x if x == REQUEST::DECODE as u16 => Ok(REQUEST::DECODE),
+            _ => Err(()),
+        }
+    }
+}
+
 
 pub enum RUNMODE {
-    CLIENT(String, String, String, Option<String>),
+    CLIENT(String, String, Option<REQUEST>, Option<String>),
     SERVER(String, String),
 }

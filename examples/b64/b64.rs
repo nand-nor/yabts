@@ -116,7 +116,6 @@ fn base64encode(input: &mut Vec<u8>, output: &mut Vec<u8>) -> u64 {
     0
 }
 
-
 //TODO!! Implement this
 fn base64decode(input: &mut Vec<u8>, output: &mut Vec<u8>) -> u64 {
     let in_len: usize = input.len();

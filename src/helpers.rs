@@ -4,14 +4,18 @@ use std::process;
 
 use argparse::{ArgumentParser, Store, StoreOption, StoreTrue};
 
-pub fn run_client_mode(addr: String, port: String, mode: String, file: Option<String>) -> u16 {
+pub fn run_client_mode(addr: String, port: String, request: Option<super::REQUEST>, file: Option<String>) -> u16 {
     //check that the request is a valid u16
-    let request = u16::from_str_radix(&mode, 10);
+    /*let request = u16::from_str_radix(&mode, 10);
     if request.is_err() {
         display_useage();
         exit(EINVAL);
+    }*/
+    if let Some(req) = request {
+        client::run_client(addr, port, req, file)
+    } else {
+        return super::EINVAL
     }
-    client::run_client(addr, port, request.unwrap() as u16, file)
 }
 
 ///Parse args such that a user can enter args in any order and all are optional
@@ -20,7 +24,9 @@ pub fn parse_args() -> RUNMODE {
     let mut file: Option<String> = None;
     let mut addr_str: Option<String> = Some("127.0.0.1".to_string());
     let mut port_str: Option<String> = Some("4000".to_string());
-    let mut request: Option<String> = None;
+    //let mut request: Option<String> = None;
+
+    let mut req: Option<super::REQUEST> = None;
 
     {
         let mut parser = ArgumentParser::new();
@@ -32,7 +38,7 @@ pub fn parse_args() -> RUNMODE {
             r#"RUNMODE: default is server, use client for client mode"#,
         );
 
-        parser.refer(&mut request).add_option(
+        parser.refer(&mut req).add_option(
             &["-r", "--request"],
             StoreOption,
             r#"REQUEST: If in client mode, specify the request to send to server"#,
@@ -61,14 +67,7 @@ pub fn parse_args() -> RUNMODE {
 
     if let Some(mode) = mode {
         match mode.as_str() {
-            "client" => {
-                if let Some(request) = request {
-                    RUNMODE::CLIENT(addr_str.unwrap(), port_str.unwrap(), request, file)
-                } else {
-                    display_useage();
-                    process::exit(EINVAL as _);
-                }
-            }
+            "client" => RUNMODE::CLIENT(addr_str.unwrap(), port_str.unwrap(), req, file),
             "server" => RUNMODE::SERVER(addr_str.unwrap(), port_str.unwrap()),
             _ => RUNMODE::SERVER(addr_str.unwrap(), port_str.unwrap()),
         }

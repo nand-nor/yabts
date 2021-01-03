@@ -33,6 +33,10 @@ impl MessageHeader {
         (self.length, self.code)
     }
 
+    pub fn code(&self) -> u16 {
+        self.code
+    }
+
     pub fn is_valid(&self) -> bool {
         self.magic == super::MAGIC
     }

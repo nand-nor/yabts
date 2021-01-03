@@ -3,6 +3,7 @@ use std::io::prelude::*;
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::str::FromStr;
+use std::convert::TryInto;
 
 use crate::message::*;
 use crate::stats::*;
@@ -82,9 +83,9 @@ impl Server {
 
     fn process_request(&mut self, request: u16, payload: Option<Vec<u8>>) -> Message {
         match request {
-            super::PING => Message::new(0, super::OK, None),
-            super::GET => self.generate_stats(),
-            super::RESET => self.reset_stats(),
+            x if x == super::REQUEST::PING as u16 => Message::new(0, super::OK, None),
+            x if x == super::REQUEST::GET as u16 => self.generate_stats(),
+            x if x == super::REQUEST::RESET as u16 => self.reset_stats(),
             _ => self.generate_msg(request, payload),
         }
     }
@@ -168,13 +169,13 @@ impl Server {
     fn generate_msg(&mut self, mtype: u16, payload: Option<Vec<u8>>) -> Message {
         if let Some(payload) = payload {
             match mtype {
-                super::COMPRESS => self.generate_compression(payload),
-                super::DECOMPRESS => self.generate_decompression(payload),
-                super::ENCODE => match self.transform_payload(true, payload) {
+                x if x == super::REQUEST::COMPRESS as u16 => self.generate_compression(payload),
+                x if x == super::REQUEST::DECOMPRESS as u16 => self.generate_decompression(payload),
+                x if x == super::REQUEST::ENCODE as u16 => match self.transform_payload(true, payload) {
                     Ok(t) => Message::new(t.len() as u16, super::OK, Some(t)),
                     Err(e) => Message::new(0, super::EINVAL, None),
                 },
-                super::DECODE => match self.transform_payload(false, payload) {
+                x if x == super::REQUEST::DECODE as u16 => match self.transform_payload(false, payload) {
                     Ok(t) => Message::new(t.len() as u16, super::OK, Some(t)),
                     Err(e) => Message::new(0, super::EINVAL, None),
                 },
@@ -272,12 +273,13 @@ impl Server {
     }
 
     fn process(&mut self, mut msg: Message) -> Message {
-        match msg.get_header().get() {
+
+        match msg.get_header().code() {
             //request {
-            (_, super::PING) => Message::new(0, super::OK, None),
-            (_, super::GET) => self.generate_stats(),
-            (_, super::RESET) => self.reset_stats(),
-            (_, request) => self.generate_msg(request, msg.get_payload()),
+            x if x == super::REQUEST::PING as u16 => Message::new(0, super::OK, None),
+            x if x == super::REQUEST::GET as u16 => self.generate_stats(),
+            x if x == super::REQUEST::RESET as u16 => self.reset_stats(),
+            request => self.generate_msg(request, msg.get_payload()),
         }
     }
 
