@@ -19,7 +19,7 @@ specifically compression/ decompression and encoding/decoding implementations of
     – Base 64
     – COBS (Consistent Overhead Byte Stuffing)
     – "Simple" compression scheme for a trivial compression/decompression (see example)
-    – Using 3rd party crate for Snappy algorithm implementation
+    – Using 3rd party crate for Snappy algorithm implementation (WIP)
     – Possibly others, TBD
 
 ### Why do? ###
@@ -41,16 +41,7 @@ been obscured per request.
 ## Target Platform // Development Environment ##
 
 Development environment is Ubuntu 18.04.3 LTS. It is written in Rust using the 
-as-of-this-writing latest stable toolchain e.g. rustc 1.41.0 (5e1a79984 2020-01-27).
-
-## Building ##
- 
-For users who do not already have the Rust toolchain, run `build.sh`. This script 
-will by default install the latest version of `rustc` and `cargo`. For those who
-already have Rust toolchains. simply use the Makefile to compile via `make release`. 
-
-By default this will build the server binary. To build the client binary / run in
-client mode, run `make client_test` option. 
+as-of-this-writing latest stable toolchain e.g. rustc 1.48.0 (7eac88abb 2020-11-16).
 
 ## Description ##
 

@@ -20,8 +20,8 @@ fn main() {
                     to_method_c: None,
                     from_method_cd: None,
                 },
-                addr.clone(),
-                port.clone(),
+                addr,
+                port,
             );
             if server.is_err() {
                 println!("\nERROR: internal server error\n");
@@ -29,10 +29,7 @@ fn main() {
                 exit(EINVAL);
             }
             let mut server = server.unwrap();
-            println!(
-                "\nServer initilized, listening on address {:?}, port {:?}...",
-                addr, port
-            );
+
             server.listen()
         }
     };
