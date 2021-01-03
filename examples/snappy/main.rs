@@ -2,6 +2,6 @@ extern crate snap;
 
 extern crate yabts;
 
-use std::io;
+//use std::io;
 
 fn main() {}

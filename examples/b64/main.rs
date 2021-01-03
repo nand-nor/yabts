@@ -1,7 +1,5 @@
 extern crate yabts;
 
-use std::env;
-use std::process;
 use yabts::{helpers::*, *};
 
 pub mod b64;

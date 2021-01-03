@@ -1,13 +1,11 @@
 use bincode;
 use std::fs::File;
-use std::io::prelude::*;
 use std::io::{Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpStream};
 use std::str;
 use std::str::FromStr;
 
-use crate::{message, MAX_MSG_LEN, MAX_PAYLOAD_LEN};
-use std::process;
+use crate::{message, MAX_MSG_LEN};
 
 pub fn parse_payload(file: Option<String>) -> Option<Vec<u8>> {
     if let Some(file) = file {
@@ -30,7 +28,12 @@ pub fn parse_payload(file: Option<String>) -> Option<Vec<u8>> {
     }
 }
 
-pub fn run_client(addr: String, _port: String, request: super::REQUEST, file: Option<String>) -> u16 {
+pub fn run_client(
+    addr: String,
+    _port: String,
+    request: super::REQUEST,
+    file: Option<String>,
+) -> u16 {
     let send_payload: Option<Vec<u8>> = match request {
         super::REQUEST::COMPRESS => parse_payload(file),
         super::REQUEST::DECOMPRESS => parse_payload(file),
@@ -51,12 +54,12 @@ pub fn run_client(addr: String, _port: String, request: super::REQUEST, file: Op
         Ok(a) => match port {
             Ok(p) => SocketAddr::new(IpAddr::V4(a), p),
             Err(e) => {
-                println!("\nSERVER: Invalid server port provided");
+                println!("\nSERVER: Invalid server port provided {:?}", e);
                 return super::EINVAL;
             }
         },
         Err(e) => {
-            println!("\nSERVER: Invalid server address provided");
+            println!("\nSERVER: Invalid server address provided: {:?}", e);
             return super::EINVAL;
         }
     };
@@ -111,11 +114,12 @@ pub fn process_response(request: super::REQUEST, read_it: &[u8]) -> u16 {
                         println!("\nCLIENT: unable to serialize received stats data");
                         return super::UNKNOWN;
                     } else {
-                        let (returned_sent, returned_rcv, returned_ratio) = res.unwrap();
+                        let (returned_sent, returned_rcv, cratio, dratio, eratio, deratio) = res.unwrap();
                         println!(
                         "\nCLIENT: Stats: return status {:?}, server returned sent bytes: {:?}, \
-                         rcv'd bytes {:?}, ratio: {:?}",
-                        status, returned_sent, returned_rcv, returned_ratio
+                         rcv'd bytes {:?}, compression ratio: {:?}, decompression ratio: {:?},\
+                         encode ratio: {:?}, decode ratio: {:?}",
+                        status, returned_sent, returned_rcv, cratio, dratio, eratio, deratio
                     );
                     }
                 }
@@ -139,7 +143,7 @@ pub fn process_response(request: super::REQUEST, read_it: &[u8]) -> u16 {
             };
         }
         Err(e) => {
-            println!("\nCLIENT: Unable to deserialize read-in bytes");
+            println!("\nCLIENT: Unable to deserialize read-in bytes {:?}", e);
             return super::OTHER_ERROR;
         }
     };
@@ -147,8 +151,8 @@ pub fn process_response(request: super::REQUEST, read_it: &[u8]) -> u16 {
     return super::OK;
 }
 
-pub fn serialize_to_stats(payload: Vec<u8>) -> Result<(u64, u64, u8), ()> {
-    if payload.len() != 17 {
+pub fn serialize_to_stats(payload: Vec<u8>) -> Result<(u64, u64, u8, u8, u8, u8), ()> {
+    if payload.len() != 20 {
         println!(
             "\nCLIENT: Payload is longer than it should be! Length is {:?}",
             payload.len()
@@ -166,9 +170,12 @@ pub fn serialize_to_stats(payload: Vec<u8>) -> Result<(u64, u64, u8), ()> {
 
     let sent = u64::from_ne_bytes(sent_bytes);
     let rcv = u64::from_ne_bytes(rcv_bytes);
-    let ratio = payload[16];
+    let cratio = payload[16];
+    let dratio = payload[17];
+    let eratio = payload[18];
+    let deratio = payload[19];
 
-    Ok((sent, rcv, ratio))
+    Ok((sent, rcv, cratio, dratio, eratio, deratio))
 }
 
 fn base_request(request: u16, payload: Option<Vec<u8>>) -> message::Message {

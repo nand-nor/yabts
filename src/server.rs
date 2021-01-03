@@ -3,7 +3,6 @@ use std::io::prelude::*;
 use std::io::Write;
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::str::FromStr;
-use std::convert::TryInto;
 
 use crate::message::*;
 use crate::stats::*;
@@ -81,18 +80,9 @@ impl Server {
         0
     }
 
-    fn process_request(&mut self, request: u16, payload: Option<Vec<u8>>) -> Message {
-        match request {
-            x if x == super::REQUEST::PING as u16 => Message::new(0, super::OK, None),
-            x if x == super::REQUEST::GET as u16 => self.generate_stats(),
-            x if x == super::REQUEST::RESET as u16 => self.reset_stats(),
-            _ => self.generate_msg(request, payload),
-        }
-    }
-
     //get stats does not include the bytes that are about to be generated & sent in
     //response to the message
-    fn get_stats(&self) -> (u64, u64, u8) {
+    fn get_stats(&self) -> (u64, u64, u8, u8, u8, u8) {
         return self.stats.get_stats();
     }
 
@@ -106,20 +96,46 @@ impl Server {
         self.stats.update_stats(update_sent, update_recv)
     }
 
-    fn add_compression_data(&mut self, update_sent: u64, update_recv: u64) {
-        self.stats.add_compression_data(update_sent, update_recv)
-    }
-
     ///TODO need to fix this-- three copies of the same damn vec is bad
     fn transform_payload(&mut self, direction: bool, mut payload: Vec<u8>) -> Result<Vec<u8>, ()> {
-        let mut cp: Vec<u8> = Vec::new();
-        self.method.transform(direction, &mut payload);
-        cp = payload.clone();
-        Ok(cp.clone())
+        let cp: Vec<u8>; // = Vec::new();
+        match self.method.transform(direction, &mut payload) {
+            Ok(()) => {
+                cp = payload.clone();
+                Ok(cp.clone())
+            }
+            Err(t) => {
+                //TODO set internal error state?
+                println!("SERVER: Encountered error transforming bytes: {:?}", t);
+                Err(())
+            }
+        }
     }
 
-    //The compress function will return Err(()) for requests for compressing non-lowercase
-    // alphabetic vals; in this case generate an error message
+    fn generate_encode(&mut self, payload: Vec<u8>) -> Message {
+        let old_len = payload.len();
+        let encode = self.transform_payload(true, payload);
+        if encode.is_err() {
+            //internal error occurred
+            return self.generate_msg(super::OTHER_ERROR, None);
+        }
+        let msg = encode.unwrap();
+        self.stats.add_encode_data(msg.len() as u64, old_len as u64);
+        Message::new(msg.len() as u16, 0, Some(msg.clone()))
+    }
+
+    fn generate_decode(&mut self, payload: Vec<u8>) -> Message {
+        let old_len = payload.len();
+        let decode = self.transform_payload(false, payload);
+        if decode.is_err() {
+            //internal error occurred
+            return self.generate_msg(super::OTHER_ERROR, None);
+        }
+        let msg = decode.unwrap();
+        self.stats.add_decode_data(msg.len() as u64, old_len as u64);
+        Message::new(msg.len() as u16, 0, Some(msg.clone()))
+    }
+
     fn generate_compression(&mut self, payload: Vec<u8>) -> Message {
         let old_len = payload.len();
         let compressed = self.transform_payload(true, payload);
@@ -128,12 +144,11 @@ impl Server {
             return self.generate_msg(super::OTHER_ERROR, None);
         }
         let msg = compressed.unwrap();
-        self.add_compression_data(msg.len() as u64, old_len as u64);
+        self.stats
+            .add_compression_data(msg.len() as u64, old_len as u64);
         Message::new(msg.len() as u16, 0, Some(msg.clone()))
     }
 
-    //The compress function will return Err(()) for requests for compressing non-lowercase
-    // alphabetic vals; in this case generate an error message
     fn generate_decompression(&mut self, payload: Vec<u8>) -> Message {
         let old_len = payload.len();
         let decompressed = self.transform_payload(false, payload);
@@ -142,22 +157,28 @@ impl Server {
             return self.generate_msg(super::OTHER_ERROR, None);
         }
         let msg = decompressed.unwrap();
+        self.stats
+            .add_decompression_data(msg.len() as u64, old_len as u64);
         Message::new(msg.len() as u16, 0, Some(msg.clone()))
     }
 
     //Generate a statistics message by deserializing the two u64's into
     //big endiann bytes, pushing all bytes including the u8 ratio byte
-    //into a vector of 9 u8's. This then gets populated as a message
+    //into a vector of 20 u8's. This then gets populated as a message
     //payload
     fn generate_stats(&mut self) -> Message {
         //}, usize) {
-        let (sent, rcv, ratio) = self.get_stats();
+        let (sent, rcv, cratio, dratio, eratio, deratio) = self.get_stats();
         let mut sent_bytes = sent.to_ne_bytes().to_vec();
         let mut rcv_bytes = rcv.to_ne_bytes().to_vec();
         let mut payload: Vec<u8> = Vec::new();
         payload.append(&mut sent_bytes);
         payload.append(&mut rcv_bytes);
-        payload.push(ratio);
+        payload.push(cratio);
+        payload.push(dratio);
+        payload.push(eratio);
+        payload.push(deratio);
+
         let len = payload.len();
         Message::new(len as u16, super::OK, Some(payload))
     }
@@ -171,14 +192,8 @@ impl Server {
             match mtype {
                 x if x == super::REQUEST::COMPRESS as u16 => self.generate_compression(payload),
                 x if x == super::REQUEST::DECOMPRESS as u16 => self.generate_decompression(payload),
-                x if x == super::REQUEST::ENCODE as u16 => match self.transform_payload(true, payload) {
-                    Ok(t) => Message::new(t.len() as u16, super::OK, Some(t)),
-                    Err(e) => Message::new(0, super::EINVAL, None),
-                },
-                x if x == super::REQUEST::DECODE as u16 => match self.transform_payload(false, payload) {
-                    Ok(t) => Message::new(t.len() as u16, super::OK, Some(t)),
-                    Err(e) => Message::new(0, super::EINVAL, None),
-                },
+                x if x == super::REQUEST::ENCODE as u16 => self.generate_encode(payload),
+                x if x == super::REQUEST::DECODE as u16 => self.generate_decode(payload),
                 _ => Message::new(0, super::ENOSUP, None),
             }
         } else {
@@ -194,13 +209,13 @@ impl Server {
             [0; std::mem::size_of::<MessageHeader>()];
         let mut full_bytes = [0u8; MAX_MSG_LEN];
 
-        let mut payload = None;
+        let payload; // = None;
         let mut bytes_rcv = std::mem::size_of::<MessageHeader>();
 
         let res = match stream.peek(&mut bytes) {
-            Ok(t) => bincode::deserialize(&bytes),
+            Ok(_t) => bincode::deserialize(&bytes),
             Err(e) => {
-                println!("\nSERVER: Failure to read stream-- incomplete message header found?");
+                println!("\nSERVER: Failure to read stream-- error: {:?}", e);
                 return Err(self.generate_msg(super::EINVAL, None));
             }
         };
@@ -208,7 +223,7 @@ impl Server {
         let header: MessageHeader;
 
         let (len, request) = match res {
-            Ok(t) => {
+            Ok(_t) => {
                 header = res.unwrap();
                 match header.is_valid() {
                     true => header.get(),
@@ -219,7 +234,7 @@ impl Server {
                 }
             }
             Err(e) => {
-                println!("\nSERVER: Failure to deserialize sent bytes");
+                println!("\nSERVER: Failure to deserialize sent bytes: {:?}", e);
                 return Err(self.generate_msg(super::EINVAL, None));
             }
         };
@@ -230,9 +245,9 @@ impl Server {
         }
 
         let full: Result<Message, bincode::Error> = match stream.read(&mut full_bytes) {
-            Ok(t) => bincode::deserialize(&full_bytes),
+            Ok(_t) => bincode::deserialize(&full_bytes),
             Err(e) => {
-                println!("\nSERVER: Failure to read stream-- drop connection");
+                println!("\nSERVER: Failure to read stream-- drop connection {:?}", e);
                 return Err(self.generate_msg(super::INTERNAL_ERROR, None));
             }
         };
@@ -245,7 +260,7 @@ impl Server {
                     if len as usize == msg_payload.len() {
                         payload = Some(msg_payload);
                         bytes_rcv += len as usize;
-                        self.update_stats(0, bytes_rcv as u64);
+                        self.stats.update_stats(0, bytes_rcv as u64);
                         //TODO determine if this is needed? Can I just use the
                         // deserialized message, or will that mess with ownership?
                         Ok(Message::new(len, request, payload))
@@ -254,7 +269,7 @@ impl Server {
                         //TODO determine is errorneous bytes e.g.
                         // non-transformed bytes should be stored
                         bytes_rcv += msg_payload.len();
-                        self.update_stats(0, bytes_rcv as u64);
+                        self.stats.update_stats(0, bytes_rcv as u64);
                         Err(self.generate_msg(super::EINVAL, None))
                     }
                 } else {
@@ -272,10 +287,8 @@ impl Server {
         }
     }
 
-    fn process(&mut self, mut msg: Message) -> Message {
-
+    fn process(&mut self, msg: Message) -> Message {
         match msg.get_header().code() {
-            //request {
             x if x == super::REQUEST::PING as u16 => Message::new(0, super::OK, None),
             x if x == super::REQUEST::GET as u16 => self.generate_stats(),
             x if x == super::REQUEST::RESET as u16 => self.reset_stats(),
@@ -288,7 +301,7 @@ impl Server {
     //back to the stream. The mutability of a stream object prevents this
     //from being more easily modularized, need to look into this further
     fn handle_client(&mut self, mut stream: TcpStream) {
-        let mut response = match self.get_request(&stream) {
+        let response = match self.get_request(&stream) {
             Ok(r) => self.process(r),
             Err(r) => r,
         };
@@ -302,13 +315,15 @@ impl Server {
                         self.update_stats(send_len as u64, 0);
                     }
                     Err(e) => {
-                        println!("\nSERVER: Failure to write stream");
+                        println!("\nSERVER: Failure to write stream: {:?}", e);
                         //TODO Set internal error state
                         // Err(e)
                     }
                 }
             }
             Err(e) => {
+                println!("\nSERVER: Failure to serialize response bytes: {:?}", e);
+
                 //TODO convert from Box<bincode::ErrorKInd> to std::io::ErrorKind
                 //set internal error state!
                 // return Err(std::io::Error::new(std::io::ErrorKind::Other, "Bincode error"))

@@ -15,9 +15,9 @@ release:
 	$(CARGO) build --release
 
 
-.PHONY: tests
-tests:
-	$(CARGO) test --test client
+#.PHONY: tests
+#tests:
+#	$(CARGO) test --test client
 
 .PHONY: examples
 examples:

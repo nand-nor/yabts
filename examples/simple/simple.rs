@@ -1,5 +1,5 @@
 use std::io; //error::Error;
-use std::iter::Iterator;
+//use std::iter::Iterator;
 use yabts::transform::*;
 
 //use std::str;
@@ -112,7 +112,7 @@ impl _Compress for Simple {
 }
 
 impl _Decompress for Simple {
-    fn _decompress(&self, payload: &mut Vec<u8>) -> Result<(), io::Error> {
+    fn _decompress(&self, _payload: &mut Vec<u8>) -> Result<(), io::Error> {
         Ok(())
     }
 }

@@ -2,19 +2,19 @@ use crate::*;
 use std::env;
 use std::process;
 
-use argparse::{ArgumentParser, Store, StoreOption, StoreTrue};
+use argparse::{ArgumentParser, StoreOption};
 
-pub fn run_client_mode(addr: String, port: String, request: Option<super::REQUEST>, file: Option<String>) -> u16 {
-    //check that the request is a valid u16
-    /*let request = u16::from_str_radix(&mode, 10);
-    if request.is_err() {
-        display_useage();
-        exit(EINVAL);
-    }*/
+pub fn run_client_mode(
+    addr: String,
+    port: String,
+    request: Option<super::REQUEST>,
+    file: Option<String>,
+) -> u16 {
+
     if let Some(req) = request {
         client::run_client(addr, port, req, file)
     } else {
-        return super::EINVAL
+        return super::EINVAL;
     }
 }
 

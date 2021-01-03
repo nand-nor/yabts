@@ -74,6 +74,7 @@ pub trait Encode<T=Self> {
 }
 */
 
+/*
 pub trait ___Payload<E: _Encode> {
     type Input;
     fn encode<T>(&self, payload: &mut T) -> Result<(), io::Error>;
@@ -94,6 +95,7 @@ impl Payload
     }
 }
 
+
 pub struct EncodePayload {
     //<E: _Encode> {
     pub to_method: Box<dyn _Encode>,
@@ -112,8 +114,9 @@ impl EncodePayload
         println!("Running the outer decode method!\n");
         self.from_method._decode(bytes);
     }
-}
+}*/
 
+/*
 pub struct _Payload<T, F> {
     pub bytes: Vec<u8>,
     to_method: T,   //Box<dyn T>,
@@ -145,6 +148,7 @@ where
         self.from_method._decompress(bytes);
     }
 }
+*/
 
 /*
 pub struct _Payload<'a, T> {
@@ -169,28 +173,28 @@ pub struct __Payload<T> {
 pub struct Default {}
 
 impl _Encode for Default {
-    fn _encode(&self, payload: &mut Vec<u8>) -> Result<(), io::Error> {
+    fn _encode(&self, _payload: &mut Vec<u8>) -> Result<(), io::Error> {
         println!("Running the inner generic Encode method!!!\n");
         Ok(())
     }
 }
 
 impl _Decode for Default {
-    fn _decode(&self, payload: &mut Vec<u8>) -> Result<(), io::Error> {
+    fn _decode(&self, _payload: &mut Vec<u8>) -> Result<(), io::Error> {
         println!("Running the inner generic Decode method!!!\n");
         Ok(())
     }
 }
 
 impl _Compress for Default {
-    fn _compress(&self, payload: &mut Vec<u8>) -> Result<(), io::Error> {
+    fn _compress(&self, _payload: &mut Vec<u8>) -> Result<(), io::Error> {
         println!("Running the inner generic Encode method!!!\n");
         Ok(())
     }
 }
 
 impl _Decompress for Default {
-    fn _decompress(&self, payload: &mut Vec<u8>) -> Result<(), io::Error> {
+    fn _decompress(&self, _payload: &mut Vec<u8>) -> Result<(), io::Error> {
         println!("Running the inner generic Decode method!!!\n");
         Ok(())
     }

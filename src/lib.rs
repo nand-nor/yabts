@@ -40,10 +40,9 @@ pub enum REQUEST {
     DECODE,
 }
 
-
 impl std::str::FromStr for REQUEST {
     type Err = std::io::Error;
-    fn from_str(request: &str)->Result<REQUEST,std::io::Error>{
+    fn from_str(request: &str) -> Result<REQUEST, std::io::Error> {
         match request {
             "ping" => Ok(REQUEST::PING),
             "get" => Ok(REQUEST::GET),
@@ -52,8 +51,12 @@ impl std::str::FromStr for REQUEST {
             "decompress" => Ok(REQUEST::DECOMPRESS),
             "encode" => Ok(REQUEST::ENCODE),
             "decode" => Ok(REQUEST::DECODE),
-            _ => return Err(std::io::Error::new(std::io::ErrorKind::Other,
-                                                "Invalid request provided"))
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "Invalid request provided",
+                ))
+            }
         }
     }
 }
@@ -76,7 +79,6 @@ impl TryFrom<u16> for REQUEST {
         }
     }
 }
-
 
 pub enum RUNMODE {
     CLIENT(String, String, Option<REQUEST>, Option<String>),
