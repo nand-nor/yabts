@@ -73,4 +73,4 @@ For this service I have used the `serde` and `bincode` libraries, which together
 perform serialization and deserialization of bytes sent over the TCP socket. From 
 `bincode`'s documentation: "A compact encoder / decoder pair that uses a binary 
 zero-fluff encoding scheme" This handles encoding and decoding network byte order.
-Also used is the argparse crate for commandline option parsing
+Also used is the `argparse` crate for commandline option parsing
