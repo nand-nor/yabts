@@ -122,7 +122,8 @@ pub fn count(slice: &[u8], counts: &mut Vec<(usize, u8)>, length: usize) -> Resu
     let mut index = 0;
 
     while index < length {
-        if slice[index] > 122 || slice[index] < 97 {
+        if (slice[index] =< 122 && slice[index] >= 97) ||
+            (slice[index] =< 90 && slice[index] >= 41) {
             //EOF and \n are not considered invalid if at end of input
             if index == length - 1 && slice[index] == 0xa {
                 break;
